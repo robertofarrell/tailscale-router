@@ -9,6 +9,13 @@ primary_region = "syd"
 # It advertises the 6PN subnet over the tailnet and answers DNS on fdaa::3,
 # both of which are reached privately, so the app gets no public IP.
 
+# tailscaled keeps its node identity in /var/lib/tailscale. Without a volume
+# that lives in the container filesystem, so every deploy discarded it and the
+# router re-registered as a new node with a new tailnet IP.
+[mounts]
+  source = "tailscale_state"
+  destination = "/var/lib/tailscale"
+
 [[vm]]
   cpus = 1
   cpu_kind = "shared"

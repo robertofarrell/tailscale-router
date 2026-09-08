@@ -29,12 +29,15 @@ func main() {
 
 	fmt.Println("tailscale-router: tailnet name", tailnet)
 
+	// Not ephemeral: Tailscale reaps ephemeral nodes once they go offline, which
+	// would invalidate the identity persisted on the /var/lib/tailscale volume
+	// between deploys, defeating the point of keeping it.
 	var jsonData = []byte(`{
 		"capabilities": {
 			"devices": {
 				"create": {
 					"reusable": true,
-					"ephemeral": true
+					"ephemeral": false
 				}
 			}
 		}
