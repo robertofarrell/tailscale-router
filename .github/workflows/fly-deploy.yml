@@ -28,4 +28,7 @@ jobs:
           fi
 
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only -a "$FLY_APP_NAME"
+      # --ha=false keeps this to a single machine. Two subnet routers would
+      # both advertise the same 6PN route, and Tailscale would pick between
+      # them unpredictably.
+      - run: flyctl deploy --remote-only --ha=false -a "$FLY_APP_NAME"
