@@ -83,10 +83,25 @@ installed, and the failure is in the *IPv4* mangle table — `tailscaled` aborts
 connmark setup there before it reaches IPv6, which is the only family this
 router forwards.
 
-What is unverified: an end-to-end `dig` through the proxy from a client on the
-tailnet, as in the README's "Test it Out". Until someone runs that from a
-device on the same tailnet, "the warning is harmless" is an inference from the
-installed rules, not a measurement.
+This has since been measured from a client on the same tailnet, on the
+upgraded build. Both paths work:
+
+```
+$ dig @100.74.136.13 aaaa personal-tailscale-router.internal
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR
+personal-tailscale-router.internal. 10 IN AAAA fdaa:0:c4b4:a7b:e2:b785:6b05:2
+;; Query time: 24 msec
+
+$ ping6 -c 3 fdaa:0:c4b4:a7b:e2:b785:6b05:2
+3 packets transmitted, 3 packets received, 0.0% packet loss
+```
+
+The `/48` is installed on the client as a route via the Tailscale interface, so
+the ping traverses the advertised subnet route rather than going direct.
+
+Still untested: forwarding to a *third* host inside the 6PN. The ping target is
+the router machine itself, because it is currently the only app in the org, so
+route acceptance and delivery are proven but transit to another host is not.
 
 If it does turn out to matter, `tailscaled --netfilter-mode=nodivert` (leaving
 the base rules in place but not the divert/mangle ones) is the first thing to
