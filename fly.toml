@@ -1,4 +1,6 @@
-app = "personal-tailscale-router"
+# The app name is deliberately not set here. CI passes it as `-a` from the
+# FLY_APP_NAME repository variable, so a fork doesn't have to commit its own
+# app name. Local deploys need `-a <your-app>` for the same reason.
 primary_region = "syd"
 
 [build]
