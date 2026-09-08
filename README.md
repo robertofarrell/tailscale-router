@@ -25,17 +25,28 @@ The steps below are one-time setup.
    While you're in [`fly.toml`](fly.toml), set `primary_region` to a region near you
    (`flyctl platform regions` lists them).
 
-4. Get an **API key** from the Tailscale admin console: Settings > Keys > `Generate API key`.
+4. Create the volume that holds `tailscaled`'s node identity. Its name must match
+   `source` in [`fly.toml`](fly.toml)'s `[mounts]`, and its region must match
+   `primary_region`:
+
+   ```bash
+   flyctl volumes create tailscale_state --size 1 --region syd -a my-unique-tailscale-router-app-name
+   ```
+
+   Without this the deploy fails, and without the mount the router would
+   re-register as a new Tailscale node with a new IP on every deploy.
+
+5. Get an **API key** from the Tailscale admin console: Settings > Keys > `Generate API key`.
    This is not the same thing as an auth key — the router mints its own ephemeral auth keys
    through the API, so it needs an API key to do that with.
 
-5. Set the key as a Fly secret. The app reads it from `TAILSCALE_API_TOKEN`:
+6. Set the key as a Fly secret. The app reads it from `TAILSCALE_API_TOKEN`:
 
    ```bash
    flyctl secrets set TAILSCALE_API_TOKEN=thekeyyougot -a my-unique-tailscale-router-app-name
    ```
 
-6. Give GitHub Actions a deploy token. Piping it straight into `gh` keeps the token out of your
+7. Give GitHub Actions a deploy token. Piping it straight into `gh` keeps the token out of your
    shell history, and scoping it to the one app means a compromised CI run can't touch your other
    Fly apps:
 
@@ -43,14 +54,14 @@ The steps below are one-time setup.
    flyctl tokens create deploy -a my-unique-tailscale-router-app-name | gh secret set FLY_API_TOKEN
    ```
 
-7. Push to `main`. The workflow builds the image on Fly's remote builder and deploys a machine.
+8. Push to `main`. The workflow builds the image on Fly's remote builder and deploys a machine.
 
-8. Check that your subnet routes are enabled in the Tailscale admin console under **Machines**.
+9. Check that your subnet routes are enabled in the Tailscale admin console under **Machines**.
    The router tries to enable them for itself over the API on startup, so this is usually just a
    verification step — see [Tailscale's subnet docs](https://tailscale.com/kb/1019/subnets/) if
    the routes show as pending approval.
 
-9. Enjoy
+10. Enjoy
 
 ## Deploying by hand
 
@@ -80,7 +91,8 @@ You can enable split DNS in your Tailscale settings to automatically resolve `*.
 Tailscale documentation for that is [found here](https://tailscale.com/kb/1054/dns/).
 
 1. Add a nameserver
-2. Use the IP address of your new Fly.io app
+2. Use the app's Tailscale IP, from `flyctl ssh console -a <app> -C '/app/tailscale ip -4'`.
+   This survives deploys, because the node identity is persisted on the volume
 3. Restrict to search domains, and use search domain `internal`
 
 Then addresses should resolve! Maybe use `curl` to make an HTTP request to one of your apps. Be sure to use the `internal_port` of your application:

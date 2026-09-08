@@ -107,32 +107,3 @@ If it does turn out to matter, `tailscaled --netfilter-mode=nodivert` (leaving
 the base rules in place but not the divert/mangle ones) is the first thing to
 try.
 
-## The router's tailnet IP changes on every deploy
-
-`tailscaled` keeps its node identity in `--state=/var/lib/tailscale/tailscaled.state`,
-which lives in the container filesystem and is therefore replaced on every
-deploy. `main.go` then mints a fresh *ephemeral* auth key and `tailscale up`
-registers as a brand new node, with a new `100.x` address:
-
-```
-before deploy: 100.74.136.13
-after deploy:  100.117.9.99   # same Fly machine, new tailnet node
-```
-
-This matters because the README's "DNS Setup" section has you enter that IP as
-a nameserver in Tailscale's split DNS config. That entry goes stale on every
-deploy, and `dig` against the old address times out until it is updated by
-hand. It also leaves a trail of `offline` ephemeral nodes in the tailnet.
-
-Options, roughly in order of preference:
-
-1. Attach a Fly volume for `/var/lib/tailscale` so the node identity survives a
-   deploy. Keeps one stable node and one stable IP.
-2. Drop `ephemeral` from the key capabilities in `main.go` and pass a fixed
-   `--hostname`, so re-registration reuses the existing node rather than
-   creating a sibling.
-3. Leave it, and treat the split-DNS nameserver entry as something to update
-   after each deploy. Only reasonable if deploys are rare.
-
-Until one of these lands, the README's DNS Setup steps should be read as
-"re-do this after every deploy".
