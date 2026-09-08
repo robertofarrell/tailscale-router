@@ -56,6 +56,11 @@ func main() {
 	}
 	defer response.Body.Close()
 
+	if response.StatusCode/100 != 2 {
+		fmt.Println("ERROR: Create key returned", response.Status)
+		panic("tailscale rejected the auth key request; check TAILSCALE_API_TOKEN")
+	}
+
 	var out keyResp
 	err = json.NewDecoder(response.Body).Decode(&out)
 	if err != nil {
@@ -63,6 +68,14 @@ func main() {
 		panic(error)
 	}
 	key := out.Key
+
+	// An empty key here would otherwise reach `tailscale up --authkey=` and
+	// silently fall back to interactive browser login, leaving the machine
+	// running but unauthorized.
+	if key == "" {
+		panic("tailscale returned an empty auth key")
+	}
+
 	fmt.Println("tailscale-router: auth key created")
 
 	fmt.Println("tailscale-router: grepping /etc/hosts to get fly-local-6pn")
