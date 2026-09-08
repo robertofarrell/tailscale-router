@@ -28,7 +28,6 @@ func main() {
 	api_key := os.Getenv("TAILSCALE_API_TOKEN")
 
 	fmt.Println("tailscale-router: tailnet name", tailnet)
-	fmt.Println("tailscale-router: api key", api_key)
 
 	var jsonData = []byte(`{
 		"capabilities": {
@@ -64,7 +63,7 @@ func main() {
 		panic(error)
 	}
 	key := out.Key
-	fmt.Println("tailscale-router: key is", key)
+	fmt.Println("tailscale-router: auth key created")
 
 	fmt.Println("tailscale-router: grepping /etc/hosts to get fly-local-6pn")
 	output, err := exec.Command("grep", "fly-local-6pn", "/etc/hosts").Output()
