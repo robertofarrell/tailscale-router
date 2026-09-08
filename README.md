@@ -74,29 +74,70 @@ flyctl deploy --remote-only -a my-unique-tailscale-router-app-name
 
 ## Test it Out
 
-You can test if it's working by finding the IP address of your new Fly.io app and using `dig`:
+Two separate things can be broken here, so test them in order. Both need the
+device you are testing from to be on the **same tailnet** the router joined.
+
+First, find the router's Tailscale IP — this is the `100.x` address, not the
+`fdaa:` one that `flyctl m list` prints:
 
 ```bash
-# Get the IP address of your app:
-flyctl m list -a my-unique-tailscale-router-app-name
-
-# Use dig to test DNS queries the DNS proxy setup in this repository
-dig @<your-app-ip-address-here> aaaa my-unique-tailscale-router-app-name.internal
+flyctl ssh console -a my-unique-tailscale-router-app-name -C '/app/tailscale ip -4'
 ```
+
+**1. Is the DNS proxy reachable?** Query it directly by IP, which needs only
+plain tailnet connectivity:
+
+```bash
+dig @100.x.x.x aaaa my-unique-tailscale-router-app-name.internal
+```
+
+Expect `status: NOERROR` and an `fdaa:` address in the ANSWER section. A
+timeout means the proxy is not reachable — check the app is running and that
+`dnsproxy` appears in `flyctl logs`.
+
+**2. Is the subnet route working?** Reach the address that came back. This is
+the part that depends on the advertised route, not just DNS:
+
+```bash
+# the fdaa: address dig returned above
+ping6 fdaa:0:c4b4:a7b:e2:b785:6b05:2
+```
+
+If step 1 answers but step 2 does not, DNS is fine and the route is the
+problem: check the routes are approved in the Tailscale admin console under
+**Machines**.
 
 ## DNS Setup
 
-You can enable split DNS in your Tailscale settings to automatically resolve `*.internal` addresses through the DNS proxy setup in your new Fly.io app.
+The steps above query the proxy explicitly with `dig @...`. Split DNS makes
+`*.internal` names resolve through it automatically, so a plain
+`curl http://some-app.internal:8080` works without naming a DNS server.
+See [Tailscale's DNS docs](https://tailscale.com/kb/1054/dns/) for the
+underlying feature.
 
-Tailscale documentation for that is [found here](https://tailscale.com/kb/1054/dns/).
+1. Get the router's Tailscale IP:
 
-1. Add a nameserver
-2. Use the app's Tailscale IP, from `flyctl ssh console -a <app> -C '/app/tailscale ip -4'`.
-   This survives deploys, because the node identity is persisted on the volume
-3. Restrict to search domains, and use search domain `internal`
+   ```bash
+   flyctl ssh console -a my-unique-tailscale-router-app-name -C '/app/tailscale ip -4'
+   ```
 
-Then addresses should resolve! Maybe use `curl` to make an HTTP request to one of your apps. Be sure to use the `internal_port` of your application:
+2. In the Tailscale admin console, open **DNS**, and under **Nameservers**
+   choose **Add nameserver** > **Custom**.
 
-```bash
-curl http://some-fly-app.internal:8080
-```
+3. Paste the `100.x` address from step 1 as the nameserver.
+
+4. Turn on **Restrict to search domain** and enter `internal` as the search
+   domain. Without this, *all* your DNS goes through this one Fly machine
+   rather than just `*.internal` names.
+
+5. Save, then confirm resolution now works with no `@server` argument:
+
+   ```bash
+   dig aaaa my-unique-tailscale-router-app-name.internal
+   curl http://some-fly-app.internal:8080   # use the app's internal_port
+   ```
+
+This entry pins one IP address, so it breaks if the router's Tailscale IP ever
+changes. The volume keeps that IP stable across deploys, but losing the volume
+re-registers the node with a new address — see [NOTES.md](NOTES.md) for what
+that looks like and how to recover.
