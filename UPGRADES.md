@@ -63,3 +63,31 @@ but it means the machine stays "up" from Fly's perspective even if `tailscaled`
 or `dnsproxy` has died. Fly restarts a machine whose main process exits, so
 letting `dnsproxy` run in the foreground as the final command would turn a
 crashed proxy into an automatic restart instead of a silently broken router.
+
+## Known consequence of the 1.102 bump: connmark health warning
+
+Tailscale 1.102 installs connmark rules that 1.30.2 did not, and Fly's kernel
+has no `xt_connmark` module, so `tailscaled` reports a permanent `router`
+health warning:
+
+```
+enabling connmark rules: ... in mangle/PREROUTING: exit status 2:
+Warning: Extension CONNMARK revision 0 not supported, missing kernel module?
+iptables v1.8.13 (nf_tables): unknown option "--nfmask"
+```
+
+This does not appear to stop the router working. After the upgrade the node
+still reports `PrimaryRoutes: ["fdaa:0:c4b4::/48"]` and `Online: true`, the
+IPv6 filter table has `FORWARD -j ts-forward` with all ten `ts-` chains
+installed, and the failure is in the *IPv4* mangle table — `tailscaled` aborts
+connmark setup there before it reaches IPv6, which is the only family this
+router forwards.
+
+What is unverified: an end-to-end `dig` through the proxy from a client on the
+tailnet, as in the README's "Test it Out". Until someone runs that from a
+device on the same tailnet, "the warning is harmless" is an inference from the
+installed rules, not a measurement.
+
+If it does turn out to matter, `tailscaled --netfilter-mode=nodivert` (leaving
+the base rules in place but not the divert/mangle ones) is the first thing to
+try.
