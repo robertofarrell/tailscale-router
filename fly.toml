@@ -1,0 +1,13 @@
+app = "personal-tailscale-router"
+primary_region = "syd"
+
+[build]
+
+# No [http_service] or [[services]]: this machine has no public listeners.
+# It advertises the 6PN subnet over the tailnet and answers DNS on fdaa::3,
+# both of which are reached privately, so the app gets no public IP.
+
+[[vm]]
+  cpus = 1
+  cpu_kind = "shared"
+  memory = "256mb"
