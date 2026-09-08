@@ -112,8 +112,16 @@ func main() {
 
 	fmt.Println("tailscale-router: auth key created")
 
+	// Without --hostname, tailscaled names the node after the OS hostname, which
+	// on Fly is the machine id. Every deploy then registered a fresh node with
+	// the same name and Tailscale appended a counter: <machine-id>-1, -2, ...
+	hostname := ""
+	if app := os.Getenv("FLY_APP_NAME"); app != "" {
+		hostname = fmt.Sprintf(" --hostname=%s", app)
+	}
+
 	fmt.Println("tailscale-router: running tailscale up")
-	upcmd := exec.Command("bash", "-c", fmt.Sprintf("%s up --auth-key=%s --advertise-routes=%s", tailscale_binary_path, key, subnet))
+	upcmd := exec.Command("bash", "-c", fmt.Sprintf("%s up --auth-key=%s --advertise-routes=%s%s", tailscale_binary_path, key, subnet, hostname))
 	err = upcmd.Run()
 	if err != nil {
 		panic(err)
@@ -126,6 +134,13 @@ func main() {
 	}
 
 	nodeKey := strings.TrimSuffix(string(output), "\n")
+
+	// jq prints "null" when the field is absent, and an empty string if the
+	// pipeline itself broke. Either would match no device below, leaving selfID
+	// empty and the route approval POSTing to /api/v2/device//routes.
+	if nodeKey == "" || nodeKey == "null" {
+		panic("could not read this node's public key from tailscale status")
+	}
 
 	fmt.Println("tailscale-router: getting all devices")
 	request, err = http.NewRequest("GET", fmt.Sprintf("https://api.tailscale.com/api/v2/tailnet/%s/devices", tailnet), nil)
@@ -158,6 +173,10 @@ func main() {
 			selfID = v.ID
 			break
 		}
+	}
+
+	if selfID == "" {
+		panic(fmt.Sprint("no device in the tailnet has node key ", nodeKey))
 	}
 
 	jsonData = []byte(fmt.Sprintf(`{
