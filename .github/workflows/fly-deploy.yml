@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    # A commit touching only docs doesn't need a deploy. Mixed commits still
+    # deploy, since paths-ignore only skips when every changed path matches.
+    paths-ignore:
+      - '**.md'
   workflow_dispatch:
 
 jobs:
